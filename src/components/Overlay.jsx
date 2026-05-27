@@ -17,9 +17,6 @@ export default function Overlay() {
       <header style={{ display: 'flex', justifyContent: 'space-between', width: '100%', pointerEvents: 'auto' }}>
         <div style={{ fontWeight: 'bold', letterSpacing: '2px' }}>BND.</div>
         <nav style={{ display: 'flex', gap: '2rem' }}>
-          <a href="#projects" style={{ color: '#000', textDecoration: 'none', fontSize: '0.9rem' }}>PROJEKTY</a>
-          <a href="#about" style={{ color: '#000', textDecoration: 'none', fontSize: '0.9rem' }}>O NÁS</a>
-          <a href="#contact" style={{ color: '#000', textDecoration: 'none', fontSize: '0.9rem' }}>KONTAKT</a>
         </nav>
       </header>
 

@@ -1,58 +1,63 @@
 import { useRef, useMemo } from 'react'
 import { useFrame, useThree, createPortal, extend } from '@react-three/fiber'
-import { useFBO, RenderTexture, Text } from '@react-three/drei'
-import { useControls } from 'leva'
+import { useFBO } from '@react-three/drei'
 import * as THREE from 'three'
 import { FluidMaterial } from './FluidMaterial'
-import { DistortionMaterial } from './DistortionMaterial'
+import { SkyGlassMaterial } from './SkyGlassMaterial'
 
-extend({ FluidMaterial, DistortionMaterial })
+extend({ FluidMaterial, SkyGlassMaterial })
 
-export default function FluidCanvas() {
-  const { size, gl, viewport } = useThree()
+export default function FluidCanvas({ fluidSettings = {}, glassSettings = {} }) {
+  const { size, gl, viewport, pointer } = useThree()
 
-  // Leva panel pro doladění skleněného chování v reálném čase
-  const config = useControls('BND Glass Engine', {
-    decay: { value: 0.975, min: 0.95, max: 0.999, step: 0.001, label: 'Setrvačnost skla' },
-    radius: { value: 0.08, min: 0.01, max: 0.3, step: 0.01, label: 'Velikost vln' },
-    distortion: { value: 0.14, min: 0.01, max: 0.40, step: 0.01, label: 'Lom skla' },
-    aberration: { value: 0.015, min: 0.001, max: 0.05, step: 0.001, label: 'Prism (Duhový efekt)' },
-    shimmer: { value: 0.5, min: 0.0, max: 1.0, step: 0.1, label: 'Jiskření' },
-    specularPower: { value: 48.0, min: 8.0, max: 128.0, step: 8.0, label: 'Ostrost odlesků' }
-  })
+  const {
+    decay = 0.96,
+    radius = 0.04,
+    force = 8.0,
+    advection = 0.005,
+  } = fluidSettings
 
-  const fboWidth = size.width / 3
-  const fboHeight = size.height / 3
+  const {
+    distortion = 0.15,
+    aberration = 0.02,
+    fogStrength = 0.4,
+    highlight = 3.0,
+    skyColor1 = '#76d4ff',
+    skyColor2 = '#f9d2dc',
+    cloudColor = '#ffffff',
+  } = glassSettings
 
-  const fboConfig = {
-    type: THREE.HalfFloatType,
-    format: THREE.RGBAFormat,
-    magFilter: THREE.LinearFilter,
-    minFilter: THREE.LinearFilter,
-  }
-
-  const targetA = useRef(useFBO(fboWidth, fboHeight, fboConfig))
-  const targetB = useRef(useFBO(fboWidth, fboHeight, fboConfig))
-  const materialRef = useRef()
-  const distortionRef = useRef()
-
-  const pointer = useRef(new THREE.Vector2())
-  const prevPointer = useRef(new THREE.Vector2())
-
-  const orthoCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), [])
+  const fboConfig = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter }
+  const targetA = useRef(useFBO(size.width / 4, size.height / 4, fboConfig))
+  const targetB = useRef(useFBO(size.width / 4, size.height / 4, fboConfig))
+  
+  const fluidMaterialRef = useRef(null)
+  const skyMaterialRef = useRef(null)
+  
   const fboScene = useMemo(() => new THREE.Scene(), [])
+  const orthoCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), [])
+
+  const skyColor1Vec = useMemo(() => new THREE.Color(skyColor1), [skyColor1])
+  const skyColor2Vec = useMemo(() => new THREE.Color(skyColor2), [skyColor2])
+  const cloudColorVec = useMemo(() => new THREE.Color(cloudColor), [cloudColor])
+  
+  const prevPointer = useRef(new THREE.Vector2())
+  const currentPointer = useRef(new THREE.Vector2())
 
   useFrame((state) => {
-    prevPointer.current.copy(pointer.current)
-    pointer.current.set((state.pointer.x + 1) / 2, (state.pointer.y + 1) / 2)
+    prevPointer.current.copy(currentPointer.current)
+    currentPointer.current.set((pointer.x + 1) / 2, (pointer.y + 1) / 2)
 
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTexture.value = targetA.current.texture
-      materialRef.current.uniforms.uMouse.value.copy(pointer.current)
-      materialRef.current.uniforms.uPrevMouse.value.copy(prevPointer.current)
-      materialRef.current.uniforms.uResolution.value.set(size.width, size.height)
-      materialRef.current.uniforms.uDecay.value = config.decay
-      materialRef.current.uniforms.uRadius.value = config.radius
+    // Výpočet fluidní hybnosti (FBO Ping-Pong)
+    if (fluidMaterialRef.current) {
+      fluidMaterialRef.current.uTexture = targetA.current.texture
+      fluidMaterialRef.current.uMouse.copy(currentPointer.current)
+      fluidMaterialRef.current.uPrevMouse.copy(prevPointer.current)
+      fluidMaterialRef.current.uResolution.set(size.width, size.height)
+      fluidMaterialRef.current.uDecay = decay
+      fluidMaterialRef.current.uRadius = radius
+      fluidMaterialRef.current.uForce = force
+      fluidMaterialRef.current.uAdvection = advection
     }
 
     gl.setRenderTarget(targetB.current)
@@ -63,45 +68,52 @@ export default function FluidCanvas() {
     targetA.current = targetB.current
     targetB.current = temp
 
-    if (distortionRef.current) {
-      distortionRef.current.uniforms.uFluidTex.value = targetB.current.texture
-      distortionRef.current.uniforms.uDistortionStrength.value = config.distortion
-      distortionRef.current.uniforms.uAberrationStrength.value = config.aberration
-      distortionRef.current.uniforms.uSpecularPower.value = config.specularPower
-      distortionRef.current.uniforms.uShimmerIntensity.value = config.shimmer
-      distortionRef.current.uniforms.uTime.value = state.clock.elapsedTime * 10.0
+    // Předání dat do snového skleněného shaderu
+    if (skyMaterialRef.current) {
+      skyMaterialRef.current.uFluidTex = targetB.current.texture
+      skyMaterialRef.current.uTime = state.clock.getElapsedTime()
+      skyMaterialRef.current.uDistortion = distortion
+      skyMaterialRef.current.uAberration = aberration
+      skyMaterialRef.current.uFogStrength = fogStrength
+      skyMaterialRef.current.uHighlight = highlight
+      skyMaterialRef.current.uSkyColor1 = skyColor1Vec
+      skyMaterialRef.current.uSkyColor2 = skyColor2Vec
+      skyMaterialRef.current.uCloudColor = cloudColorVec
     }
   })
 
   return (
     <>
+      {/* Skrytá scéna, kde se počítají vlny myši */}
       {createPortal(
         <mesh>
           <planeGeometry args={[2, 2]} />
-          <fluidMaterial ref={materialRef} />
+          {/* @ts-ignore */}
+          <fluidMaterial
+            ref={fluidMaterialRef}
+            uDecay={decay}
+            uRadius={radius}
+            uForce={force}
+            uAdvection={advection}
+          />
         </mesh>,
         fboScene
       )}
 
+      {/* Fullscreen plátno: Tady se vykresluje nebe, mlha a tekuté sklo */}
       <mesh>
         <planeGeometry args={[viewport.width, viewport.height]} />
-        <distortionMaterial ref={distortionRef}>
-          <RenderTexture attach="uTextTex">
-            {/* PRÉMIOVÁ ŠEDÁ: Pozadí studia, které dává vyniknout stříbrným odleskům */}
-            <color attach="background" args={['#e5e5e7']} />
-            
-            <Text
-              position={[0, 0, 0]}
-              fontSize={viewport.width * 0.09}
-              fontWeight={900}
-              anchorX="center"
-              anchorY="middle"
-              color="#1a1a1a"
-            >
-              BND AGENCY
-            </Text>
-          </RenderTexture>
-        </distortionMaterial>
+        {/* @ts-ignore */}
+        <skyGlassMaterial
+          ref={skyMaterialRef}
+          uDistortion={distortion}
+          uAberration={aberration}
+          uFogStrength={fogStrength}
+          uHighlight={highlight}
+          uSkyColor1={skyColor1Vec}
+          uSkyColor2={skyColor2Vec}
+          uCloudColor={cloudColorVec}
+        />
       </mesh>
     </>
   )

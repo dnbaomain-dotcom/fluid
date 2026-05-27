@@ -9,6 +9,8 @@ export const FluidMaterial = shaderMaterial(
     uResolution: new THREE.Vector2(),
     uDecay: 0.96,   // Jak rychle kapalina mizí (viskozita)
     uRadius: 0.04,  // Poloměr interakce kurzoru
+    uForce: 8.0,    // Intenzita tahu při pohybu kurzoru
+    uAdvection: 0.005, // Síla advekce tekutiny
   },
   // Vertex Shader (Klasický fullscreen quad)
   `
@@ -26,6 +28,8 @@ export const FluidMaterial = shaderMaterial(
   uniform vec2 uResolution;
   uniform float uDecay;
   uniform float uRadius;
+  uniform float uForce;
+  uniform float uAdvection;
 
   varying vec2 vUv;
 
@@ -39,13 +43,13 @@ export const FluidMaterial = shaderMaterial(
     float dist = distance(uv * aspect, uMouse * aspect);
 
     // Gaussova křivka pro hladký rozptyl síly kolem kurzoru
-    float force = exp(-pow(dist / uRadius, 2.0));
+    float force = exp(-pow(dist / uRadius, 2.0)) * uForce;
     
     // Nová hybnost (RG kanály ponesou X a Y rychlost)
-    vec2 velocity = mouseDir * force * 8.0;
+    vec2 velocity = mouseDir * force;
 
     // ADVEKCE: Kapalina unáší sama sebe (tady vzniká ten organický vlnitý efekt)
-    vec2 advectedUv = uv - prevState.xy * 0.005;
+    vec2 advectedUv = uv - prevState.xy * uAdvection;
     vec4 nextState = texture2D(uTexture, advectedUv) * uDecay;
 
     // Sečtení nového stavu a oříznutí, aby simulace neexplodovala

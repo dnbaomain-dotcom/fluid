@@ -49,8 +49,8 @@ export const DistortionMaterial = shaderMaterial(
 
     // 3. CHROMATICKÁ ABERACE (Duhový hranol na textu)
     float red = texture2D(uTextTex, vUv - refractVec * 3.5).r;   // Posunuto hodně
-float green = texture2D(uTextTex, vUv - refractVec * 1.0).g; // Střed
-float blue = texture2D(uTextTex, vUv + refractVec * 1.5).b;  // Posunuto na druhou stranu (+)
+    float green = texture2D(uTextTex, vUv - refractVec * 1.0).g; // Střed
+    float blue = texture2D(uTextTex, vUv + refractVec * 1.5).b;  // Posunuto na druhou stranu (+)
     vec3 refractiveScene = vec3(red, green, blue);
 
     // 4. CRYSTAL FRESNEL (Zářivě bílé hrany skla po celé ploše)

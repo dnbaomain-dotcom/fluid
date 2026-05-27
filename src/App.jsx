@@ -21,13 +21,24 @@ export default function App() {
     cloudColor: '#ffffff',
   })
 
+  const materialSettings = useControls('Material', {
+    materialType: { label: 'Style', options: { 'Sky Glass': 'sky', 'Prism Glass': 'prism', 'Neon Matrix': 'neon' } },
+    materialDistortion: { label: 'Refraction', value: 0.15, min: 0.0, max: 0.45, step: 0.005 },
+    materialAberration: { label: 'Rainbow Shift', value: 0.02, min: 0.0, max: 0.12, step: 0.002 },
+    materialGlow: { label: 'Glow', value: 3.0, min: 0.0, max: 10.0, step: 0.1 },
+    prismColor1: '#76d4ff',
+    prismColor2: '#ffb2f6',
+    neonGridScale: { label: 'Grid Scale', value: 5.0, min: 2.0, max: 12.0, step: 0.25 },
+    neonPulse: { label: 'Pulse', value: 1.0, min: 0.1, max: 2.5, step: 0.05 },
+    neonHue: { label: 'Hue', value: 0.62, min: 0.0, max: 1.0, step: 0.01 },
+  })
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-      {/* Konfigurace Leva panelu na levou stranu s tmavým tématem */}
-      <Leva 
+      <Leva
         theme={{
-          sizes: { panelWidth: '300px', rootTop: '70px', rootLeft: '20px' },
-          colors: { elevation1: '#ffffff', elevation2: '#f7f7f7', accentColor: '#1a1a1a', label: '#333', value: '#000' }
+          sizes: { panelWidth: '320px', rootTop: '70px', rootLeft: '20px' },
+          colors: { elevation1: '#ffffff', elevation2: '#f3f3f3', accentColor: '#222222', label: '#1a1a1a', value: '#0d0d0d' }
         }}
         oneLineLabels={true}
         flat={true}
@@ -42,7 +53,7 @@ export default function App() {
       >
         {/* Sladěné pozadí Canvasu */}
         <color attach="background" args={['#e5e5e7']} />
-        <FluidCanvas fluidSettings={fluidSettings} glassSettings={glassSettings} />
+        <FluidCanvas fluidSettings={fluidSettings} glassSettings={glassSettings} materialSettings={materialSettings} />
       </Canvas>
     </div>
   )
